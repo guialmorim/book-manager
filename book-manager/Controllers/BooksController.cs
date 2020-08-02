@@ -22,6 +22,13 @@ namespace book_manager.Controllers
             return View(books.ToList());
         }
 
+        // GET: Books
+        public ActionResult List()
+        {
+            var books = db.Books.Include(b => b.Gender);
+            return View(books.ToList());
+        }
+
         // GET: Books/Details/5
         public ActionResult Details(int? id)
         {
