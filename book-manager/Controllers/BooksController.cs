@@ -9,7 +9,9 @@ using System.Net;
 using System.Web;
 using System.Web.Mvc;
 using book_manager.DataAccess;
+using book_manager.Infra;
 using book_manager.Models;
+using book_manager.ViewModels;
 
 namespace book_manager.Controllers
 {
@@ -24,56 +26,53 @@ namespace book_manager.Controllers
         }
 
         // GET: Books/List -> JSON with all books
-        public JsonResult List(Book book, int current = 1, int rowCount = 5)
+        public JsonResult List(PaginationParameters paginationParameters)
         {
-            string sortKey = Request.Form.AllKeys.Where(k => k.StartsWith("sort")).First();
-            string ordination = Request[sortKey];
-            string selectedField = sortKey.Replace("sort[", string.Empty).Replace("]", string.Empty);
-
-            var books = db.Books.Include(b => b.Gender);
+            var books = db.Books.AsQueryable();
             var total = books.Count();
 
-            if (!string.IsNullOrWhiteSpace(book.Title))
-                books = books.Where(b => b.Title.Contains(book.Title));
+            if (!string.IsNullOrWhiteSpace(paginationParameters.SearchPhrase))
+            {
+                int year = 0;
+                int.TryParse(paginationParameters.SearchPhrase, out year);
 
-            if (!string.IsNullOrWhiteSpace(book.Author))
-                books = books.Where(b => b.Author.Contains(book.Author));
+                decimal value = 0;
+                decimal.TryParse(paginationParameters.SearchPhrase, out value);
 
-            if (book.YearEdition != 0)
-                books = books.Where(b => b.YearEdition == book.YearEdition);
+                books = books.Where("Title.Contains(@0) OR Author.Contains(@0) OR YearEdition == @1 OR Value == @2", paginationParameters.SearchPhrase, year, value);
+            }
 
-            if (book.Value != decimal.Zero)
-                books = books.Where(b => b.Value == book.Value);
+            var paginatedBooks = books.OrderBy(paginationParameters.OrderedField).Skip((paginationParameters.Current - 1) * paginationParameters.RowCount).Take(paginationParameters.RowCount);
 
-            string fieldAndOrdination = String.Format("{0} {1}", selectedField, ordination);
+            return Json(new FilteredData()
+            {
+                current = paginationParameters.Current,
+                rowCount = paginationParameters.RowCount,
+                rows = paginatedBooks,
+                total = total
 
-            var paginatedBooks = books.OrderBy(fieldAndOrdination).Skip((current - 1) * rowCount).Take(rowCount);
-
-            return Json( new { rows = paginatedBooks.ToList(),
-                current, rowCount, total }, 
-                JsonRequestBehavior.AllowGet);
+            }, JsonRequestBehavior.AllowGet);
         }
 
         // GET: Books/Details/5
         public ActionResult Details(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
+            
             Book book = db.Books.Find(id);
+
             if (book == null)
-            {
                 return HttpNotFound();
-            }
-            return View(book);
+            
+            return PartialView(book);
         }
 
         // GET: Books/Create
         public ActionResult Create()
         {
             ViewBag.GenderId = new SelectList(db.Genders, "Id", "Name");
-            return View();
+            return PartialView();
         }
 
         // POST: Books/Create
@@ -81,33 +80,38 @@ namespace book_manager.Controllers
         // obter mais detalhes, veja https://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Create([Bind(Include = "Id,Title,Author,YearEdition,Value,GenderId")] Book book)
+        public JsonResult Create([Bind(Include = "Id,Title,Author,YearEdition,Value,GenderId")] Book book)
         {
+            object response = null;
+
             if (ModelState.IsValid)
             {
                 db.Books.Add(book);
                 db.SaveChanges();
-                return RedirectToAction("Index");
+                response = new { result = true, message = "Book registered successfully!" };
+            }
+            else
+            {
+                IEnumerable<ModelError> errors = ModelState.Values.SelectMany(item => item.Errors);
+                response = new { result = false, message = errors };
             }
 
-            ViewBag.GenderId = new SelectList(db.Genders, "Id", "Name", book.GenderId);
-            return View(book);
+            return Json(response);
         }
 
         // GET: Books/Edit/5
         public ActionResult Edit(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
+            
             Book book = db.Books.Find(id);
+
             if (book == null)
-            {
                 return HttpNotFound();
-            }
+            
             ViewBag.GenderId = new SelectList(db.Genders, "Id", "Name", book.GenderId);
-            return View(book);
+            return PartialView(book);
         }
 
         // POST: Books/Edit/5
@@ -115,31 +119,37 @@ namespace book_manager.Controllers
         // obter mais detalhes, veja https://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Edit([Bind(Include = "Id,Title,Author,YearEdition,Value,GenderId")] Book book)
+        public JsonResult Edit([Bind(Include = "Id,Title,Author,YearEdition,Value,GenderId")] Book book)
         {
+            object response = null;
+
             if (ModelState.IsValid)
             {
                 db.Entry(book).State = EntityState.Modified;
                 db.SaveChanges();
-                return RedirectToAction("Index");
+                response = new { result = true, message = "Book edited successfully!" };
             }
-            ViewBag.GenderId = new SelectList(db.Genders, "Id", "Name", book.GenderId);
-            return View(book);
+            else
+            {
+                IEnumerable<ModelError> errors = ModelState.Values.SelectMany(item => item.Errors);
+                response = new { result = false, message = errors };
+            }
+
+            return Json(response);
         }
 
         // GET: Books/Delete/5
         public ActionResult Delete(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
+            
             Book book = db.Books.Find(id);
+
             if (book == null)
-            {
                 return HttpNotFound();
-            }
-            return View(book);
+            
+            return PartialView(book);
         }
 
         // POST: Books/Delete/5
@@ -147,10 +157,21 @@ namespace book_manager.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult DeleteConfirmed(int id)
         {
-            Book book = db.Books.Find(id);
-            db.Books.Remove(book);
-            db.SaveChanges();
-            return RedirectToAction("Index");
+            object response = null;
+
+            try
+            {
+                Book book = db.Books.Find(id);
+                db.Books.Remove(book);
+                db.SaveChanges();
+                response = new { result = true, message = "Book removed successfully!" };
+            }
+            catch(Exception ex)
+            {
+                response = new { result = false, message = ex.Message };
+            }
+
+            return Json(response);
         }
 
         protected override void Dispose(bool disposing)
