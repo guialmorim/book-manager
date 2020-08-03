@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Entity;
+using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
 using System.Linq;
+using System.Linq.Dynamic;
 using System.Net;
 using System.Web;
 using System.Web.Mvc;
@@ -15,18 +17,41 @@ namespace book_manager.Controllers
     {
         private BookContext db = new BookContext();
 
-        // GET: Books
+        // GET: Books/Index
         public ActionResult Index()
         {
-            var books = db.Books.Include(b => b.Gender);
-            return View(books.ToList());
+            return View();
         }
 
-        // GET: Books
-        public ActionResult List()
+        // GET: Books/List -> JSON with all books
+        public JsonResult List(Book book, int current = 1, int rowCount = 5)
         {
+            string sortKey = Request.Form.AllKeys.Where(k => k.StartsWith("sort")).First();
+            string ordination = Request[sortKey];
+            string selectedField = sortKey.Replace("sort[", string.Empty).Replace("]", string.Empty);
+
             var books = db.Books.Include(b => b.Gender);
-            return View(books.ToList());
+            var total = books.Count();
+
+            if (!string.IsNullOrWhiteSpace(book.Title))
+                books = books.Where(b => b.Title.Contains(book.Title));
+
+            if (!string.IsNullOrWhiteSpace(book.Author))
+                books = books.Where(b => b.Author.Contains(book.Author));
+
+            if (book.YearEdition != 0)
+                books = books.Where(b => b.YearEdition == book.YearEdition);
+
+            if (book.Value != decimal.Zero)
+                books = books.Where(b => b.Value == book.Value);
+
+            string fieldAndOrdination = String.Format("{0} {1}", selectedField, ordination);
+
+            var paginatedBooks = books.OrderBy(fieldAndOrdination).Skip((current - 1) * rowCount).Take(rowCount);
+
+            return Json( new { rows = paginatedBooks.ToList(),
+                current, rowCount, total }, 
+                JsonRequestBehavior.AllowGet);
         }
 
         // GET: Books/Details/5

@@ -13,10 +13,29 @@
     </a>
 </p>
 
+<table id="booksGrid">
+    <thead>
+        <tr>
+            <th data-column-id="Title" data-order="asc">Title</th>
+            <th data-column-id="Author">Author</th>
+            <th data-column-id="YearEdition">Year of Edition</th>
+            <th data-column-id="Value">Value</th>
+        </tr>
+    </thead>
+</table>
+
 @section scripts{
+    <script src="~/Scripts/jquery.bootgrid.js"></script>
 
     <script type="text/javascript">
-        $(document).ready(configurarControles);
+        $(document).ready(configureControls);
+
+        function configureControls() {
+            $('#booksGrid').bootgrid({
+                ajax: true,
+                url: "@Url.Action("List")"
+            });
+        }
     </script>
 
 }
