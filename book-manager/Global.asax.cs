@@ -1,4 +1,6 @@
 using book_manager.DataAccess;
+using book_manager.infra;
+using book_manager.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Data.Entity;
@@ -19,6 +21,7 @@ namespace book_manager
             RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
             Database.SetInitializer<BookContext>(new BooksInit());
+            ModelBinders.Binders.Add(typeof(PaginationParameters), new PaginationParamsModelBinder());
         }
     }
 }

@@ -53,12 +53,15 @@
 
     </dl>
 
-    @using (Html.BeginForm()) {
+    @using (Html.BeginForm("Delete", "Books", FormMethod.Post, new { id = "createForm" }))
+    {
         @Html.AntiForgeryToken()
 
         <div class="form-actions no-color">
-            <input type="submit" value="Delete" class="btn btn-default" /> |
-            @Html.ActionLink("Back to List", "Index")
+            <input type="button" value="Delete" class="btn btn-default" /> |
+            @Html.ActionLink("Back to list", "Index");
         </div>
     }
 </div>
+
+<script src="~/Scripts/project/sendForm.js"></script>
